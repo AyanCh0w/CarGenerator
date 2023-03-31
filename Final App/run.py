@@ -1,3 +1,5 @@
+print("START")
+import os
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,9 +7,8 @@ import torch
 import torch.nn as nn
 import torchvision
 import gradio as gr
-
-print("Imported")
-
+os.chdir('C:/Users/blubo/OneDrive/Documents/GitHub/CarGenerator/Final App')
+print("IMPORT")
 inputChannels = 3
 NDF = 64 #num discriminator features
 #DEFINE MODEL
@@ -21,7 +22,7 @@ def initilize_weights(layer):
     nn.init.constant_(layer.bias.data, 0)
 
 noiseChannels = 100
-NGF = 64
+NGF = 128
 class Generator(nn.Module):
   def __init__(self):
     super(Generator, self).__init__()
@@ -75,37 +76,38 @@ class SuperRes(nn.Module):
     output = self.layer3(output)
     output = self.layer4(output)
     return output
-
-print("Made Models")
-
+print("MODEL")
 device = "cuda"
 res = SuperRes().to(device)
 loss_fn = nn.MSELoss()
 optim = torch.optim.Adam(res.parameters())
-
+print("DEVICE")
 noiseChannels = 100
-genModel = torch.load("./Final App/genSave.model")
-resModel = torch.load("./Final App/superresSave.model")
-
+genModel = torch.load("./genSave.model")
+resModel = torch.load("./superresSave.model")
 genModel.eval()
 resModel.eval()
+print("LOAD")
 
-print("Loaded Models")
+def car(Batch):
+  output = (genModel(torch.randn(1, noiseChannels, 1, 1, device = "cuda")).cpu().detach()[0].permute([1, 2, 0]) + 1) / 2
+  output = output.permute(2, 0, 1)
+  output = output.unsqueeze(0)
+  output = output.to("cuda")
+  output = resModel(output)
+  final = output.detach().cpu().squeeze(0).permute(1, 2, 0).numpy()
+  return final
 
-output = genModel(torch.randn(1, noiseChannels, 1, 1, device = "cuda")).cpu().detach()[0].permute([1, 2, 0])
+demo = gr.Blocks()
+with demo:
+  gr.Markdown("""
+    # Car Image Gen
+  """
+  )
+  btn = gr.Button(value="Click For Image of Car")
+  output = gr.Image()
+  output.style(width=512, height=512)
 
-print("Output")
+  btn.click(fn=car, outputs=output)
 
-output = output.permute(2, 0, 1)
-output = output.unsqueeze(0)
-output = output.to("cuda")
-output = resModel(output)
-output = (output + 1 )/2
-
-print("Formatted Output")
-
-plt.imshow(output.detach().cpu().squeeze(0).permute(1, 2, 0))
-
-print("Displayed Output")
-
-plt.show()
+demo.launch(share=True)
